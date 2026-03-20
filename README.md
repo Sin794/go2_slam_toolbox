@@ -26,6 +26,7 @@ mkdir -p ~/go2_ws_toolbox/src
 cd ~/go2_ws_toolbox/src
 git clone https://github.com/Sin794/go2_slam_toolbox.git
 cd ..
+source ~/unitree_ros2/setup.sh
 colcon build
 source install/setup.bash
 ```
