@@ -33,8 +33,6 @@ source install/setup.bash
 
 ## 运行前配置
 
-公开发布后，最建议先检查这一份文件：
-
 - `src/base/go2_core/config/runtime_config.yaml`
 
 当前所有“环境相关的默认值”都会优先从这里读取，包括：
