@@ -49,7 +49,7 @@
 #include <utility>
 
 #include "sensor_msgs/point_cloud2_iterator.hpp"
-#include "tf2_sensor_msgs/tf2_sensor_msgs.hpp"
+#include "tf2_sensor_msgs/tf2_sensor_msgs.h"
 #include "tf2_ros/create_timer_ros.h"
 #include "tf2/LinearMath/Transform.h"
 #include "geometry_msgs/msg/transform_stamped.hpp"
@@ -62,18 +62,14 @@ PointCloudToLaserScanNode::PointCloudToLaserScanNode(const rclcpp::NodeOptions &
 {
   target_frame_ = this->declare_parameter("target_frame", "");
   tolerance_ = this->declare_parameter("transform_tolerance", 0.01);
-  // TODO(hidmic): adjust default input queue size based on actual concurrency levels
-  // achievable by the associated executor
-  // input_queue_size_ = this->declare_parameter(
-  //   "queue_size", static_cast<int>(std::thread::hardware_concurrency()));
   input_queue_size_ = this->declare_parameter(
-    "queue_size", 10);           // 小项目，精度要求不高，调高几个队列【笑脸】
+    "queue_size", static_cast<int>(std::thread::hardware_concurrency()));
   min_height_ = this->declare_parameter("min_height", std::numeric_limits<double>::min());
   max_height_ = this->declare_parameter("max_height", std::numeric_limits<double>::max());
   angle_min_ = this->declare_parameter("angle_min", -M_PI);
   angle_max_ = this->declare_parameter("angle_max", M_PI);
   angle_increment_ = this->declare_parameter("angle_increment", M_PI / 180.0);
-  scan_time_ = this->declare_parameter("scan_time", 1.0 / 10.0);
+  scan_time_ = this->declare_parameter("scan_time", 1.0 / 30.0);
   range_min_ = this->declare_parameter("range_min", 0.0);
   range_max_ = this->declare_parameter("range_max", std::numeric_limits<double>::max());
   inf_epsilon_ = this->declare_parameter("inf_epsilon", 1.0);
@@ -81,13 +77,15 @@ PointCloudToLaserScanNode::PointCloudToLaserScanNode(const rclcpp::NodeOptions &
 
   rclcpp::QoS qos = rclcpp::SensorDataQoS();
   qos.reliable();
-  // qos.best_effort(); 
-   qos.durability_volatile();
 
   pub_ = this->create_publisher<sensor_msgs::msg::LaserScan>("scan", qos);
 
+  robot_pose_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
+  "/utlidar/robot_pose", 10,
+  std::bind(&PointCloudToLaserScanNode::robotPoseCallback, this, std::placeholders::_1)
+  );
+
   using std::placeholders::_1;
-  // if pointcloud target frame specified, we need to filter by transform availability
   if (!target_frame_.empty()) {
     tf2_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
     auto timer_interface = std::make_shared<tf2_ros::CreateTimerROS>(
@@ -100,7 +98,7 @@ PointCloudToLaserScanNode::PointCloudToLaserScanNode(const rclcpp::NodeOptions &
       this->get_node_clock_interface());
     message_filter_->registerCallback(
       std::bind(&PointCloudToLaserScanNode::cloudCallback, this, _1));
-  } else {  // otherwise setup direct subscription
+  } else {
     sub_.registerCallback(std::bind(&PointCloudToLaserScanNode::cloudCallback, this, _1));
   }
 
@@ -120,29 +118,9 @@ void PointCloudToLaserScanNode::subscriptionListenerThreadLoop()
 
   const std::chrono::milliseconds timeout(100);
   while (rclcpp::ok(context) && alive_.load()) {
-    // int subscription_count = pub_->get_subscription_count() +
-    //   pub_->get_intra_process_subscription_count();
-    // if (subscription_count > 0) {
-    //   if (!sub_.getSubscriber()) {
-    //     RCLCPP_INFO(
-    //       this->get_logger(),
-    //       "Got a subscriber to laserscan, starting pointcloud subscriber");
-    //     rclcpp::SensorDataQoS qos;
-    //     qos.keep_last(input_queue_size_);
-    //     qos.reliable();
-    //     sub_.subscribe(this, "cloud_in", qos.get_rmw_qos_profile());
-    //   }
-    // } else if (sub_.getSubscriber()) {
-    //   RCLCPP_INFO(
-    //     this->get_logger(),
-    //     "No subscribers to laserscan, shutting down pointcloud subscriber");
-    //   sub_.unsubscribe();
-    // }
-
     rclcpp::SensorDataQoS qos;
     qos.keep_last(input_queue_size_);
     qos.reliable();
-    // qos.best_effort();
     sub_.subscribe(this, "cloud_in", qos.get_rmw_qos_profile());
     rclcpp::Event::SharedPtr event = this->get_graph_event();
     this->wait_for_graph_change(event, timeout);
@@ -150,16 +128,16 @@ void PointCloudToLaserScanNode::subscriptionListenerThreadLoop()
   sub_.unsubscribe();
 }
 
+void PointCloudToLaserScanNode::robotPoseCallback(geometry_msgs::msg::PoseStamped::SharedPtr msg)
+{
+  pose_stamped = *msg;
+}
+
 void PointCloudToLaserScanNode::cloudCallback(
   sensor_msgs::msg::PointCloud2::ConstSharedPtr cloud_msg)
 {
-  // build laserscan output
   auto scan_msg = std::make_unique<sensor_msgs::msg::LaserScan>();
   scan_msg->header = cloud_msg->header;
-
-  // // 将时间戳修改为当前时间
-  // scan_msg->header.stamp = now();
-  
   if (!target_frame_.empty()) {
     scan_msg->header.frame_id = target_frame_;
   }
@@ -172,18 +150,15 @@ void PointCloudToLaserScanNode::cloudCallback(
   scan_msg->range_min = range_min_;
   scan_msg->range_max = range_max_;
 
-  // determine amount of rays to create
   uint32_t ranges_size = std::ceil(
     (scan_msg->angle_max - scan_msg->angle_min) / scan_msg->angle_increment);
 
-  // determine if laserscan rays with no obstacle data will evaluate to infinity or max_range
   if (use_inf_) {
     scan_msg->ranges.assign(ranges_size, std::numeric_limits<double>::infinity());
   } else {
     scan_msg->ranges.assign(ranges_size, scan_msg->range_max + inf_epsilon_);
   }
 
-  // Transform cloud if necessary
   if (scan_msg->header.frame_id != cloud_msg->header.frame_id) {
     std::cout << "Transforming point cloud from " << cloud_msg->header.frame_id << " to " << scan_msg->header.frame_id << std::endl;
     try {
@@ -196,53 +171,28 @@ void PointCloudToLaserScanNode::cloudCallback(
     }
   }
 
-  // Iterate through pointcloud
   for (sensor_msgs::PointCloud2ConstIterator<float> iter_x(*cloud_msg, "x"),
     iter_y(*cloud_msg, "y"), iter_z(*cloud_msg, "z");
     iter_x != iter_x.end(); ++iter_x, ++iter_y, ++iter_z)
   {
     if (std::isnan(*iter_x) || std::isnan(*iter_y) || std::isnan(*iter_z)) {
-      RCLCPP_DEBUG(
-        this->get_logger(),
-        "rejected for nan in point(%f, %f, %f)\n",
-        *iter_x, *iter_y, *iter_z);
       continue;
     }
 
     if (*iter_z > max_height_ || *iter_z < min_height_) {
-      RCLCPP_DEBUG(
-        this->get_logger(),
-        "rejected for height %f not in range (%f, %f)\n",
-        *iter_z, min_height_, max_height_);
       continue;
     }
 
     double range = hypot(*iter_x, *iter_y);
-    if (range < range_min_) {
-      RCLCPP_DEBUG(
-        this->get_logger(),
-        "rejected for range %f below minimum value %f. Point: (%f, %f, %f)",
-        range, range_min_, *iter_x, *iter_y, *iter_z);
-      continue;
-    }
-    if (range > range_max_) {
-      RCLCPP_DEBUG(
-        this->get_logger(),
-        "rejected for range %f above maximum value %f. Point: (%f, %f, %f)",
-        range, range_max_, *iter_x, *iter_y, *iter_z);
+    if (range < range_min_ || range > range_max_) {
       continue;
     }
 
     double angle = atan2(*iter_y, *iter_x);
     if (angle < scan_msg->angle_min || angle > scan_msg->angle_max) {
-      RCLCPP_DEBUG(
-        this->get_logger(),
-        "rejected for angle %f not in range (%f, %f)\n",
-        angle, scan_msg->angle_min, scan_msg->angle_max);
       continue;
     }
 
-    // overwrite range at laserscan ray if new range is smaller
     int index = (angle - scan_msg->angle_min) / scan_msg->angle_increment;
     if (range < scan_msg->ranges[index]) {
       scan_msg->ranges[index] = range;

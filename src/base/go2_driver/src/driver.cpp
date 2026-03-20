@@ -6,9 +6,13 @@
 // 发布坐标变换的头文件
 #include "geometry_msgs/msg/transform_stamped.hpp"
 #include "tf2_ros/transform_broadcaster.h"
+#include "tf2/LinearMath/Matrix3x3.h"
+#include "tf2/LinearMath/Quaternion.h"
 // 发布关节状态信息的头文件
 #include "sensor_msgs/msg/joint_state.hpp"
 #include "unitree_go/msg/low_state.hpp"
+#include <cmath>
+#include <string>
 
 using namespace std::placeholders;
 
@@ -20,11 +24,10 @@ public:
     {
       RCLCPP_INFO(this->get_logger(), "Driver节点创建, 用于发布里程计消息，坐标变换和关节状态信息");
 
-      // 声明参数
-      // this->declare_parameter("publish_tf", true);
-
-      // 获取参数
-      // publish_tf = this->get_parameter("publish_tf").as_bool();
+      const std::string robot_pose_topic = this->declare_parameter<std::string>(
+        "robot_pose_topic", "/utlidar/robot_pose");
+      const double tf_republish_period_ms = this->declare_parameter<double>(
+        "tf_republish_period_ms", 20.0);
 
       //坐标变换广播器
       tf_bro_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
@@ -32,10 +35,14 @@ public:
       //运动状态订阅
       sub_ = this->create_subscription<unitree_go::msg::SportModeState>("/lf/sportmodestate", 10, std::bind(&Driver::state_cb, this, _1));
 
-
       odom_pub_ = this->create_publisher<nav_msgs::msg::Odometry>("odom", 10);
-      robot_pose_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>("/utlidar/robot_pose", 10, std::bind(&Driver::pose_callback, this, std::placeholders::_1));
+      robot_pose_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
+        robot_pose_topic, 10, std::bind(&Driver::pose_callback, this, std::placeholders::_1));
 
+      tf_republish_timer_ = this->create_wall_timer(
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+          std::chrono::duration<double, std::milli>(tf_republish_period_ms)),
+        std::bind(&Driver::republish_latest_pose, this));
 
       
       //关节状态发布
@@ -54,11 +61,13 @@ private:
     rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr robot_pose_sub_;
     //发布里程计
     rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_pub_;
+    rclcpp::TimerBase::SharedPtr tf_republish_timer_;
     // 创建订阅者，订阅机器狗高层运动状态
     rclcpp::Subscription<unitree_go::msg::SportModeState>::SharedPtr sub_;
     
-    // bool publish_tf, odom_published_;
     double body_height_;
+    geometry_msgs::msg::Pose latest_pose_;
+    bool has_latest_pose_{false};
 
     void state_cb(const unitree_go::msg::SportModeState::SharedPtr state_msg)
     {
@@ -91,35 +100,63 @@ private:
       joint_state_pub_->publish(joint_state);
     }
 
-     void pose_callback(const geometry_msgs::msg::PoseStamped::SharedPtr msg) // 这里拿的是robot_pose， 是机器狗雷达的位置，所以需要进行一些换算变成base_footprint的位置
-    {   
-        rclcpp::Time now = this->now();
-        
-        geometry_msgs::msg::TransformStamped transform;
-        transform.header.stamp = now;  
-        transform.header.frame_id = "odom";
-        transform.child_frame_id = "base_footprint";  
-        transform.transform.translation.x = msg->pose.position.x - 0.28945;  
-        transform.transform.translation.y = msg->pose.position.y;   
-        transform.transform.translation.z = msg->pose.position.z - body_height_;  
-        transform.transform.rotation.x = msg->pose.orientation.x;  
-        transform.transform.rotation.y = msg->pose.orientation.y;  
-        transform.transform.rotation.z = msg->pose.orientation.z;  
-        transform.transform.rotation.w = msg->pose.orientation.w;  
-        tf_bro_->sendTransform(transform);  
+    void publish_tf_and_odom(const geometry_msgs::msg::Pose & pose, const rclcpp::Time & stamp)
+    {
+        tf2::Quaternion orientation(
+            pose.orientation.x,
+            pose.orientation.y,
+            pose.orientation.z,
+            pose.orientation.w);
+        double roll = 0.0;
+        double pitch = 0.0;
+        double yaw = 0.0;
+        tf2::Matrix3x3(orientation).getRPY(roll, pitch, yaw);
+        (void)roll;
+        (void)pitch;
 
-        nav_msgs::msg::Odometry odom;    
-        odom.header.stamp = now;    
-        odom.header.frame_id = "odom";    
-        odom.child_frame_id = "base_footprint";    
-        odom.pose.pose.position.x = transform.transform.translation.x;    
-        odom.pose.pose.position.y = msg->pose.position.y;     
-        odom.pose.pose.position.z = transform.transform.translation.z;    
-        odom.pose.pose.orientation.x = msg->pose.orientation.x;    
-        odom.pose.pose.orientation.y = msg->pose.orientation.y;    
-        odom.pose.pose.orientation.z = msg->pose.orientation.z;    
-        odom.pose.pose.orientation.w = msg->pose.orientation.w;    
-        odom_pub_->publish(odom);   
+        tf2::Quaternion yaw_only_orientation;
+        yaw_only_orientation.setRPY(0.0, 0.0, yaw);
+
+        geometry_msgs::msg::TransformStamped transform;
+        transform.header.stamp = stamp;
+        transform.header.frame_id = "odom";
+        transform.child_frame_id = "base_footprint";
+        transform.transform.translation.x = pose.position.x;
+        transform.transform.translation.y = pose.position.y;
+        transform.transform.translation.z = 0.0;
+        transform.transform.rotation.x = yaw_only_orientation.x();
+        transform.transform.rotation.y = yaw_only_orientation.y();
+        transform.transform.rotation.z = yaw_only_orientation.z();
+        transform.transform.rotation.w = yaw_only_orientation.w();
+        tf_bro_->sendTransform(transform);
+
+        nav_msgs::msg::Odometry odom;
+        odom.header.stamp = stamp;
+        odom.header.frame_id = "odom";
+        odom.child_frame_id = "base_footprint";
+        odom.pose.pose.position.x = transform.transform.translation.x;
+        odom.pose.pose.position.y = transform.transform.translation.y;
+        odom.pose.pose.position.z = transform.transform.translation.z;
+        odom.pose.pose.orientation = transform.transform.rotation;
+        odom_pub_->publish(odom);
+    }
+
+    void republish_latest_pose()
+    {
+        if (!has_latest_pose_) {
+            return;
+        }
+
+        publish_tf_and_odom(latest_pose_, this->now());
+    }
+
+    void pose_callback(const geometry_msgs::msg::PoseStamped::SharedPtr msg) // 这里拿的是robot_pose， 是机器狗雷达的位置，所以需要进行一些换算变成base_footprint的位置
+    {
+        latest_pose_ = msg->pose;
+        has_latest_pose_ = true;
+
+        rclcpp::Time now = this->now();
+        publish_tf_and_odom(latest_pose_, now);
     }
 };
 
@@ -130,7 +167,4 @@ int main(int argc, char ** argv)
     rclcpp::shutdown();
     return 0;
 }
-
-
-
 

@@ -3,4 +3,6 @@
     base_frame: base
     odom_frame: odom
     publish_tf: true
+    robot_pose_topic: /utlidar/robot_pose
+    tf_republish_period_ms: 20.0
     use_sim_time: false

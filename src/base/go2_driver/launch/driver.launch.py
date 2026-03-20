@@ -39,7 +39,12 @@ def generate_launch_description():
         # 速度消息桥接
         Node(
             package="go2_twist_bridge",
-            executable="twist_bridge"
+            executable="twist_bridge",
+            parameters=[{
+                "angular_scale": 1.0,
+                "min_in_place_yaw_rate": 0.6,
+                "zero_epsilon": 1e-3,
+            }]
         ),
 
         # 添加base_link到base_footprint的动态坐标转换
@@ -62,5 +67,3 @@ def generate_launch_description():
             executable="lowstate_to_imu"
         )
     ])
-
-

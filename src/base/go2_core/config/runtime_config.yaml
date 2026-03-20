@@ -1,0 +1,5 @@
+runtime:
+  unitree_prefix: ~/unitree_ros2/cyclonedds_ws/install
+  default_map: ~/go2_maps/test.yaml
+  map_save_dir: ~/go2_maps
+  cyclonedds_network_interface: ""

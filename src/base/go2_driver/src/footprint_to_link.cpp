@@ -11,7 +11,7 @@ using namespace std::chrono_literals;
 class TFDynamicBroadcaster : public rclcpp::Node
 {
 public:
-    TFDynamicBroadcaster() : Node("tf_dynamic_broadcaster")
+    TFDynamicBroadcaster() : Node("tf_dynamic_broadcaster"), body_height_(0.30)
     {   
         sub_ = this->create_subscription<unitree_go::msg::SportModeState>("/lf/sportmodestate", 10, std::bind(&TFDynamicBroadcaster::state_cb, this, _1));
         timer_ = this->create_wall_timer(100ms, std::bind(&TFDynamicBroadcaster::timer_cb, this));
@@ -35,8 +35,7 @@ private:
     // 订阅者回调函数
     void state_cb(const unitree_go::msg::SportModeState::SharedPtr state_msg)
     {
-        // 创建对象
-        body_height_ = state_msg->body_height + 0.057;          // 0.057从urdf文件中得知
+        body_height_ = state_msg->body_height + 0.057;
     }
 
     // 定时器回调函数
@@ -73,4 +72,3 @@ int main(int argc, char ** argv)
     rclcpp::shutdown();
     return 0;
 }
-
