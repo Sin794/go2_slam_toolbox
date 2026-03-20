@@ -22,15 +22,13 @@ sudo apt install -y \
 如果你准备把这个仓库作为独立 ROS 2 工作空间使用，可以这样放置：
 
 ```bash
-mkdir -p ~/go2_ws/src
-cd ~/go2_ws/src
-git clone <your-repo-url> unitree-go2-slam-toolbox
+mkdir -p ~/go2_ws_toolbox/src
+cd ~/go2_ws_toolbox/src
+git clone https://github.com/Sin794/go2_slam_toolbox.git
 cd ..
 colcon build
 source install/setup.bash
 ```
-
-如果你已经有自己的工作空间，把本仓库放进 `src/` 下编译即可。
 
 ## 运行前配置
 
@@ -62,7 +60,6 @@ runtime:
 - 如果你想统一地图保存目录，改 `map_save_dir`
 - 如果你的 CycloneDDS 需要绑定指定网口，例如 `enp2s0`，只改 `cyclonedds_network_interface`
 
-也就是说，网口修改现在只需要改这一个文件，不用再去多个启动文件里找。
 
 ## 快速开始
 
