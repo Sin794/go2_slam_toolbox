@@ -4,6 +4,7 @@
 
 系统依赖可以先安装这些常用包：
 
+```bash
 sudo apt update
 sudo apt install -y \
   ros-humble-robot-localization \
@@ -11,6 +12,7 @@ sudo apt install -y \
   ros-humble-nav2-bringup \
   ros-humble-navigation2 \
   ros-humble-teleop-twist-keyboard
+```
 
 如果编译期间还有缺包，再按报错补装对应的 `ros-humble-*` 包即可。
 
