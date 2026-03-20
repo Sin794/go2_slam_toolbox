@@ -1,46 +1,9 @@
-# unitree-go2-slam-toolbox
-
-一个基于 ROS 2 Humble 的 Unitree Go2 开发示例工程，目标是把 Go2 的基础驱动、状态发布、点云处理、SLAM 建图和 Nav2 导航流程串起来，方便学习和二次开发。
-
-
-## 当前状态
-
-已完成：
-
-- Go2 驱动接入与基础话题发布
-- RViz2 机器人模型显示
-- IMU + 里程计融合
-- `PointCloud2 -> LaserScan` 实验链路接入
-- `slam_toolbox` 与 `Nav2` 启动链路已接入
-- 支持 `teleop_twist_keyboard` 键盘控制
-- 支持导航 RViz 自动启动、可选关闭
-
-当前限制：
-
-- 项目仍以学习和实验用途为主
-- 地图、参数和网络配置仍建议按你的机器环境做一次检查
-- 当前这套 `PointCloud2 -> LaserScan -> slam_toolbox/Nav2` 方案仍然属于实验状态，不建议默认当作稳定 2D 建图/导航方案
-- 自主导航链路已接入，但是否适合直接实机使用，仍需结合你的机器人状态和场地继续调参验证
-- 如果你之前是在旧版 `odom -> base_footprint` 换算逻辑下保存的地图，修复后建议重新建图
-
-## 环境要求
-
-- 机器人：Unitree Go2 EDU
-- 系统：Ubuntu 22.04
-- ROS：ROS 2 Humble
-- 通信：PC 与 Go2 位于可互通网络
-
-建议先完成：
-
-- Go2 官方开发环境配置
-- ROS 2 基础网络配置
-- `teleop_twist_keyboard`、`rviz2`、`nav2`、`slam_toolbox` 的基础使用
+基于https://github.com/FishPlusDragon/unitree-go2-slam-toolbox
 
 ## 依赖
 
 系统依赖可以先安装这些常用包：
 
-```bash
 sudo apt update
 sudo apt install -y \
   ros-humble-robot-localization \
@@ -48,29 +11,9 @@ sudo apt install -y \
   ros-humble-nav2-bringup \
   ros-humble-navigation2 \
   ros-humble-teleop-twist-keyboard
-```
 
 如果编译期间还有缺包，再按报错补装对应的 `ros-humble-*` 包即可。
 
-## 工作空间结构
-
-```text
-unitree-go2-slam-toolbox/
-├── src/base/go2_driver         # Go2 驱动、状态与 TF 相关节点
-├── src/base/go2_core           # 总启动入口、EKF、RViz 配置
-├── src/base/go2_twist_bridge   # Twist 指令桥接
-├── src/go2_description         # 机器人模型与显示配置
-├── src/go2_perception          # 点云处理、LaserScan 转换
-├── src/go2_slam                # slam_toolbox 启动与参数
-└── src/go2_navigation2         # Nav2 启动与参数
-```
-
-主要启动文件：
-
-- `src/base/go2_core/launch/go2_start.launch.py`
-  用于启动驱动、点云处理、EKF 和 RViz
-- `src/go2_navigation2/launch/go2_nav2.launch.py`
-  用于加载地图并启动 Nav2
 
 ## 安装
 
