@@ -49,7 +49,7 @@ runtime:
   unitree_prefix: ~/unitree_ros2/cyclonedds_ws/install
   default_map: ~/go2_maps/test.yaml
   map_save_dir: ~/go2_maps
-  cyclonedds_network_interface: ""
+  cyclonedds_network_interface: "enp8s0"
 ```
 
 说明：
@@ -57,7 +57,7 @@ runtime:
 - 如果你的 `Unitree ROS 2` 依赖不在默认路径，改 `unitree_prefix`
 - 如果你希望导航默认加载另一张地图，改 `default_map`
 - 如果你想统一地图保存目录，改 `map_save_dir`
-- 如果你的 CycloneDDS 需要绑定指定网口，例如 `enp2s0`，只改 `cyclonedds_network_interface`
+- 如果你的 CycloneDDS 需要绑定指定网口，例如 `enp8s0`，只改 `cyclonedds_network_interface`
 
 
 ## 快速开始
