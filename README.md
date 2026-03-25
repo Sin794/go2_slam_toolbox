@@ -106,7 +106,7 @@ mkdir -p ~/go2_maps
 ### 4. 使用已有地图启动导航
 
 ```bash
-source /opt/ros/humble/setup.bash
+source ~/unitree_ros2/setup.sh
 source install/setup.bash
 ros2 launch go2_navigation2 go2_nav2.launch.py
 ```
