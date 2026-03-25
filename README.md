@@ -65,7 +65,7 @@ runtime:
 ### 1. 启动底层基线
 
 ```bash
-source /opt/ros/humble/setup.bash
+source ~/unitree_ros2/setup.sh
 source install/setup.bash
 ros2 launch go2_core go2_start.launch.py
 ```
@@ -75,7 +75,7 @@ ros2 launch go2_core go2_start.launch.py
 新开一个终端：
 
 ```bash
-source /opt/ros/humble/setup.bash
+source ~/unitree_ros2/setup.sh
 source install/setup.bash
 ros2 run teleop_twist_keyboard teleop_twist_keyboard
 ```
@@ -87,7 +87,7 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard
 建图完成后，再开一个终端执行：
 
 ```bash
-source /opt/ros/humble/setup.bash
+source ~/unitree_ros2/setup.sh
 source install/setup.bash
 ros2 run nav2_map_server map_saver_cli -f ~/go2_maps/test
 ```
